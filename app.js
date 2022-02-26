@@ -13,7 +13,7 @@ let scaling_element = document.querySelector("#scaling_element");
 // parameters
 let spawn_radius = 10; // initial room spawning radius
 let point_size = 0.5; // radius of a single point
-let room_count = 6; // how many rooms to spawn
+let room_count = 14; // how many rooms to spawn
 
 // elements
 let points = new Array();
@@ -26,11 +26,11 @@ window.onload = () => {
     // listen for resizing
     window.addEventListener("resize", resized);
     
-    // draw border around spawn radius
-    //ctx.beginPath();
-    //ctx.arc(53*UNIT, 53*UNIT, spawn_radius*UNIT, 0, 2*Math.PI);
-    //ctx.stroke();
-    //ctx.closePath();
+    /* draw border around spawn radius
+    ctx.beginPath();
+    ctx.arc(53*UNIT, 53*UNIT, spawn_radius*UNIT, 0, 2*Math.PI);
+    ctx.stroke();
+    ctx.closePath(); */
 
     //draw_grid();
 
@@ -41,18 +41,20 @@ window.onload = () => {
         points.push(point);
     }
 
+    ctx.strokeStyle = "#ff0000";
+    d();
+
     create_rooms();
 
     separate_rooms();
+    ctx.strokeStyle = "#00ff00";
     d();
 }
 
 function d() {
-    draw_points();
+    //draw_grid();
+    //draw_points();
     draw_rooms();
-    ctx.strokeStyle = "#ef0000";
-    draw_room(rooms[0]);
-    ctx.strokeStyle = "#000";
 }
 
 // update canvas size info
@@ -65,12 +67,7 @@ function update_canvas_size() {
 // run on window resize trigger
 function resized() {
     update_canvas_size();
-}
-
-// redraw (tmp function)
-function redraw(x, y, width, height) {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(x*UNIT, y*UNIT, width*UNIT, height*UNIT);
+    d();
 }
 
 // draw a point on canvas
@@ -95,19 +92,16 @@ function random_point_in_circle() {
     let angle = 2*Math.PI*Math.random();
     let dist = Math.random() + Math.random();
     let point_angle_value;
-    let x_f, y_f;
+    let x, y;
 
     if (dist > 1)  point_angle_value = 2 - dist;
     else point_angle_value = dist;
 
-    x_f = spawn_radius*point_angle_value*Math.cos(angle);
-    x_f += 50;
-    y_f = spawn_radius*point_angle_value*Math.sin(angle);
-    y_f += 50;
-    let point = new POINT(snap(x_f, UNIT), snap(y_f, UNIT));
-
-    //point.x += 50;
-    //point.y += 50;
+    x = Math.round(spawn_radius*point_angle_value*Math.cos(angle));
+    x += 50;
+    y = Math.round(spawn_radius*point_angle_value*Math.sin(angle));
+    y += 50;
+    let point = new POINT(x, y);
     return point;
 }
 
@@ -150,40 +144,56 @@ function draw_rooms() {
 }
 
 function separate_rooms() {
-    for (let current=0; current < rooms.length; current++) {
-        while (any_overlap(current)){
-            let direction = new POINT(0, 0);
-            let count = 0;
+    while (any_overlap_all()) {
+        for (let current=0; current < rooms.length; current++) {
+            if (!any_overlap(current)) continue;
+            let mass_center = new POINT(0, 0);
+            let mass_num = 0;
             for (let other=0; other < rooms.length; other++) {
-                if (other == current) continue;
-                if (check_overlap(rooms[current], rooms[other])) {
-                    direction.x += rooms[other].point.x;
-                    direction.y += rooms[other].point.y;
-                    count++;
+                if (current == other) continue;
+                if (is_overlapping(rooms[current], rooms[other])) {
+                    mass_center.x += rooms[other].point.x;
+                    mass_center.y += rooms[other].point.y;
+                    mass_num++;
                 }
             }
-            console.log("----");
-            console.log(count+" overlaps found");
-            direction.x /= count;
-            direction.y /= count;
+            mass_center.x /= mass_num;
+            mass_center.y /= mass_num;
+            let direction = new POINT(0, 0);
+            direction.x = mass_center.x - rooms[current].point.x;
+            direction.y = mass_center.y - rooms[current].point.y;
             normalize(direction);
-            console.log("dir");
-            console.log(direction);
+            direction.x *= -1;
+            direction.y *= -1;
+            if (current == 0) {
+                console.log(mass_center);
+                console.log(direction);
+            }
             shift_area(rooms[current], direction, 1);
         }
     }
-    console.log(rooms[0]);
 }
 
 function any_overlap(room_index) {
     for (let current=0; current < rooms.length; current++) {
         if (room_index == current) continue;
-        if (check_overlap(rooms[room_index], rooms[current])) return true;
+        if (is_overlapping(rooms[room_index], rooms[current], room_index)) {
+            return true;
+        }
     }
     return false;
 }
 
-function check_overlap(a1, a2) {
+function any_overlap_all() {
+    for (let current=0; current < rooms.length; current++) {
+        if (any_overlap(current)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function is_overlapping(a1, a2) {
     if ((a1.start_point.x >= a2.end_point.x) ||
         (a2.start_point.x >= a1.end_point.x)) return false;
     if ((a1.end_point.y <= a2.start_point.y )||
